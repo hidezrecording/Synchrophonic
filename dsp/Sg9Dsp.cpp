@@ -749,12 +749,15 @@ void Sg9Dsp::renderDrone(float* busL, float* busR, int n) {
         }
     }
     // All-pass LFOs: advance phase per block, retune all-pass freqs.
+    // R channel runs a fixed phase offset behind L for subtle stereo
+    // decorrelation (Nathan 2026-10-08: real-instrument width, not ping-pong).
     for (int k = 0; k < 3; ++k) {
         apLfoPhase_[k] += (float)(2.0 * kPi * kApLfoHz[k] * n * dt);
         if (apLfoPhase_[k] > 2.0f * (float)kPi) apLfoPhase_[k] -= 2.0f * (float)kPi;
-        const float f = kApFreq[k] + kApLfoDepthHz[k] * std::sin(apLfoPhase_[k]);
-        droneApL_[k].setAllpass(std::max(40.0f, f), kApQ[k]);
-        droneApR_[k].setAllpass(std::max(40.0f, f), kApQ[k]);
+        const float fL = kApFreq[k] + kApLfoDepthHz[k] * std::sin(apLfoPhase_[k]);
+        const float fR = kApFreq[k] + kApLfoDepthHz[k] * std::sin(apLfoPhase_[k] + 1.8f);
+        droneApL_[k].setAllpass(std::max(40.0f, fL), kApQ[k]);
+        droneApR_[k].setAllpass(std::max(40.0f, fR), kApQ[k]);
     }
     // Orbit panner LFO.
     orbitPhase_ += (float)(2.0 * kPi * kOrbitLfoHz * n * dt);
@@ -762,6 +765,13 @@ void Sg9Dsp::renderDrone(float* busL, float* busR, int n) {
     const float orbitPan = kOrbitLfoDepth * std::sin(orbitPhase_);
     const float oa = (orbitPan + 1.0f) * (float)(kPi / 4.0);
     const float ogL = std::cos(oa), ogR = std::sin(oa);
+    // Bellows pump: two slow detuned LFOs for hand-driven amplitude movement.
+    bellowsPhase_  += (float)(2.0 * kPi * kBellowsLfoHz  * n * dt);
+    bellowsPhase2_ += (float)(2.0 * kPi * kBellowsLfo2Hz * n * dt);
+    if (bellowsPhase_  > 2.0f * (float)kPi) bellowsPhase_  -= 2.0f * (float)kPi;
+    if (bellowsPhase2_ > 2.0f * (float)kPi) bellowsPhase2_ -= 2.0f * (float)kPi;
+    const float bellows = 1.0f - kBellowsDepth * 0.5f *
+        (1.0f + 0.6f * std::sin(bellowsPhase_) + 0.4f * std::sin(bellowsPhase2_));
 
     // Raw reed sum (mono-ish stereo via per-reed pans).
     renderDroneReeds(busL, busR, n);
@@ -799,9 +809,14 @@ void Sg9Dsp::renderDrone(float* busL, float* busR, int n) {
             env = 1.0f;
         }
         voiceEnv_ = env;
-        const float g = env * voicePeak_ * dronePreGain_;
+        // Bellows pump: hand-driven amplitude movement (anti-organ).
+        // Micro-delay on R for natural stereo width (real instrument, not FX).
+        wideBuf_[widePos_] = or_;
+        widePos_ = (widePos_ + 1) % kWideDelayN;
+        const float orDel = wideBuf_[widePos_];
+        const float g = env * voicePeak_ * dronePreGain_ * bellows;
         busL[i] = ol * g;
-        busR[i] = or_ * g;
+        busR[i] = orDel * g;
     }
 
     // Smoothed voice levels for the editor glow.
@@ -2157,7 +2172,7 @@ void Sg9Dsp::process(float* outL, float* outR, int numSamples) {
             for (int i = 0; i < n; ++i) { dL[i] *= gD; dR[i] *= gD; }
             // Pads -> PADS fader -> post-fader pad delays.
             renderPads(pL, pR, n);
-            const float gP = params_.faderPads;
+            const float gP = params_.faderPads * kPadTrim; // Nathan: pads = drone level
             for (int i = 0; i < n; ++i) { pL[i] *= gP; pR[i] *= gP; }
             renderPadDelays(pL, pR, n);
             // Scheduler first (sample-accurate beat offsets), then voices.

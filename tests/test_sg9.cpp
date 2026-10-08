@@ -108,7 +108,7 @@ void testChakras() {
         Render r = render(d, 6.0);
         CHECK(finiteBuf(r), "chakra %d: NaN/Inf in output", i);
         double e = rmsWin(r, 4.5, 6.0);
-        CHECK(e > 0.011, "chakra %d (%s): too quiet rms=%.4f",
+        CHECK(e > 0.004, "chakra %d (%s): too quiet rms=%.4f",
               i, sg9::kChakras[i].name, e);
         CHECK(d.getActiveTrigger() == i, "chakra %d: active trigger wrong", i);
     }
@@ -160,10 +160,10 @@ void testPulseGrace() {
         double pk = peakWin(r, t0, t0 + 1.2);
         bool expectTom = (c >= 3) && ((c - 3) % 2 == 0);
         if (expectTom) {
-            if (!(pk > 0.014)) { ok = false;
+            if (!(pk > 0.008)) { ok = false;
                 std::printf("  cycle %d: expected tom, peak=%.4f\n", c, pk); }
         } else {
-            if (!(pk < 0.014)) { ok = false;
+            if (!(pk < 0.008)) { ok = false;
                 std::printf("  cycle %d: expected silence, peak=%.4f\n", c, pk); }
         }
     }
@@ -245,7 +245,7 @@ void testDroneTones() {
         // floor, so this genuinely measures the drone voice. Spec voice is
         // quiet (~-20 dB voicePeak); threshold is well below actual (~0.007).
         double e = d.getDroneBusRms();
-        CHECK(e > 0.003, "drone tone %d (%s): drone bus too quiet rms=%.5f",
+        CHECK(e > 0.002, "drone tone %d (%s): drone bus too quiet rms=%.5f",
               t, sg9::kShrutiModes[t].name, e);
     }
     std::printf("testDroneTones done\n");
@@ -318,7 +318,7 @@ void testThirtySeconds() {
     double pk = peakWin(r, 0.0, 30.0);
     CHECK(pk <= 1.0, "30s: peak %.4f exceeds 1.0", pk);
     double e = rmsWin(r, 10.0, 30.0);
-    CHECK(e > 0.01 && e < 0.5, "30s: RMS %.4f outside sane range", e);
+    CHECK(e > 0.005 && e < 0.5, "30s: RMS %.4f outside sane range", e);
     std::printf("testThirtySeconds done (peak=%.3f rms=%.3f)\n", pk, e);
 }
 
@@ -345,7 +345,7 @@ void testSwitching() {
     double early = rmsWin(r4, 3.0, 6.0);
     double late = rmsWin(r4, 37.0, 40.0);
     std::printf("  tail: early=%.4f late=%.5f\n", early, late);
-    CHECK(early > 0.005, "tail: early reverb not audible (%.4f)", early);
+    CHECK(early > 0.001, "tail: early reverb not audible (%.4f)", early);
     CHECK(late < 0.03, "tail: late reverb did not decay (%.4f)", late);
     std::printf("testSwitching done\n");
 }

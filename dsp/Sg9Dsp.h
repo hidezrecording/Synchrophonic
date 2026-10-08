@@ -90,24 +90,26 @@ constexpr ShrutiMode kShrutiModes[kNumDroneTones] = {
 constexpr int kDefaultDroneTone = kDronePaSaSa;
 
 // Reed pair voicing: two wavetable oscs per open reed, gains .62/.38.
-constexpr float kReedPairDetuneCore[2]  = { -1.7f, 1.9f }; // cents
-constexpr float kReedPairDetuneLeft[2]  = { -2.3f, 1.4f };
-constexpr float kReedPairDetuneRight[2] = { -1.2f, 2.5f };
+// Detunes widened 2026-10-08 per Nathan ("more beating, less organ").
+constexpr float kReedPairDetuneCore[2]  = { -2.6f, 2.9f }; // cents
+constexpr float kReedPairDetuneLeft[2]  = { -3.4f, 2.2f };
+constexpr float kReedPairDetuneRight[2] = { -1.9f, 3.6f };
 constexpr float kReedPairGainA = 0.62f;
 constexpr float kReedPairGainB = 0.38f;
+// Pans widened 2026-10-08 per Nathan (stereo width like a real instrument).
 constexpr float kReedPanCore  = 0.0f;
-constexpr float kReedPanLeft  = -0.34f;
-constexpr float kReedPanRight =  0.34f;
+constexpr float kReedPanLeft  = -0.55f;
+constexpr float kReedPanRight =  0.55f;
 
 // Octave doublings (smaller detunes).
 constexpr float kOctDetuneSL[2] = { -0.9f, 1.1f };
 constexpr float kOctDetuneSR[2] = { -1.1f, 0.8f };
 constexpr float kOctDetuneH2[2] = { -0.8f, 1.0f };
 constexpr float kOctDetuneH3[2] = { -0.7f, 0.9f };
-constexpr float kOctPanSL = -0.22f;
-constexpr float kOctPanSR =  0.22f;
-constexpr float kOctPanH2 =  0.24f;
-constexpr float kOctPanH3 = -0.10f;
+constexpr float kOctPanSL = -0.34f;
+constexpr float kOctPanSR =  0.34f;
+constexpr float kOctPanH2 =  0.36f;
+constexpr float kOctPanH3 = -0.18f;
 constexpr float kOctGainScaleA = 0.055f; // sL / sR relative to mode level
 constexpr float kOctGainScaleB = 0.045f; // h2 relative to mode level
 constexpr float kH3BaseGain    = 0.0075f;
@@ -117,7 +119,7 @@ constexpr float kJawariHpFreq = 520.0f;
 constexpr float kJawariHpQ    = 0.18f;
 constexpr float kJawariLpFreq = 3100.0f;
 constexpr float kJawariLpQ     = 0.16f;
-constexpr float kJawariBaseGain = 0.072f;
+constexpr float kJawariBaseGain = 0.09f; // up from .072 per Nathan 2026-10-08
 constexpr float kJawariDetune[3] = { 0.6f, -1.1f, 1.4f };
 
 // Harmony-follow color reeds (gains set live from pad voicing, see §8).
@@ -143,15 +145,20 @@ constexpr float kBodyCutTauSec     = 3.4f;
 
 // All-pass drift (NO formants, NO ring mod): dry .90 + all-pass chain,
 // send .10, return .66. LFOs modulate all-pass freqs.
-constexpr float kApDry    = 0.90f;
-constexpr float kApSend   = 0.10f;
-constexpr float kApReturn = 0.66f;
+constexpr float kApDry    = 0.86f;
+constexpr float kApSend   = 0.16f; // raised 2026-10-08 for audible stereo
+constexpr float kApReturn = 0.68f; // decorrelation (Nathan: real-instrument width)
 constexpr float kApFreq[3]      = { 300.0f, 610.0f, 1080.0f };
 constexpr float kApQ[3]         = { 0.30f, 0.27f, 0.23f };
 constexpr float kApLfoHz[3]     = { 1.0f/97.0f, 1.0f/131.0f, 1.0f/173.0f };
 constexpr float kApLfoDepthHz[3]= { 45.0f, 68.0f, 92.0f };
 constexpr float kOrbitLfoHz     = 1.0f/43.0f;
-constexpr float kOrbitLfoDepth  = 0.09f;
+constexpr float kOrbitLfoDepth  = 0.16f; // deepened 2026-10-08 per Nathan
+// Bellows pump: hand-driven amplitude movement on the drone (anti-organ).
+// Slow, deep, slightly irregular feel via two detuned LFOs.
+constexpr float kBellowsLfoHz    = 0.13f;
+constexpr float kBellowsLfo2Hz   = 0.191f;
+constexpr float kBellowsDepth    = 0.14f;
 
 // Slow drift tracks: start at trigger+38 s, re-ramp every 60-180 s to a
 // random target within +/-depth, clamped.
@@ -251,6 +258,9 @@ constexpr float kPadTriDetune = 1.0014f;
 constexpr float kPadBaseDb  = -4.0f;
 constexpr float kPadDirect  = 0.22f;
 constexpr float kPadReverse = 0.92f;
+// Nathan 2026-10-08: "pads are twice as loud as drone" — trim pads
+// so they sit as warm body beside/behind the drone, not over it.
+constexpr float kPadTrim = 0.38f;
 // Vibrato: 4.9 Hz, depth 12 cents + breath-modulated 9 cents
 // (breath = same 10.9 s cycle as the breath bed).
 constexpr float kPadVibHz          = 4.9f;
@@ -415,24 +425,26 @@ constexpr float kSirenEchoWet = 0.13f;
 constexpr float kDumPitchStartRatio = 1.12f;
 constexpr float kDumPitchSec        = 0.18f;
 constexpr float kDumHarm2Gain      = 0.065f;
-constexpr float kDumLevelDown      = 0.27f;
-constexpr float kDumLevel          = 0.22f;
+// Beat levels rebalanced 2026-10-08 per Nathan: bass drums (dum/kick/bayan)
+// down, mid/high voices (tak/hand/shaker) up. Woodblock UNCHANGED.
+constexpr float kDumLevelDown      = 0.18f;
+constexpr float kDumLevel          = 0.15f;
 
 constexpr float kKickStartHz = 76.0f;
 constexpr float kKickMidHz   = 48.0f;
 constexpr float kKickEndHz   = 38.0f;
 constexpr float kKickPitchSec = 0.16f;
 constexpr float kKickLpHz    = 170.0f;
-constexpr float kKickLevelDown = 0.115f;
-constexpr float kKickLevel     = 0.09f;
+constexpr float kKickLevelDown = 0.08f;
+constexpr float kKickLevel     = 0.06f;
 
 constexpr float kBayanPitchStartRatio = 1.28f;
 constexpr float kBayanPitchSec        = 0.30f;
 constexpr float kBayanSubGain  = 0.045f;
 constexpr float kBayanLpHz    = 235.0f;
 constexpr float kBayanDecaySec = 0.78f;
-constexpr float kBayanLevelDown = 0.12f;
-constexpr float kBayanLevel     = 0.095f;
+constexpr float kBayanLevelDown = 0.085f;
+constexpr float kBayanLevel     = 0.065f;
 constexpr float kBayanPan = -0.18f;
 
 // TAK/woodblock (dayan positions, EVERY OTHER written occurrence):
@@ -444,8 +456,8 @@ constexpr float kTakPitchSec        = 0.075f;
 constexpr float kTakBpQ      = 0.72f;
 constexpr float kTakAttackSec = 0.022f;
 constexpr float kTakDecaySec  = 0.25f;
-constexpr float kTakLevelDown = 0.09f;
-constexpr float kTakLevel     = 0.078f;
+constexpr float kTakLevelDown = 0.12f;
+constexpr float kTakLevel     = 0.105f;
 constexpr float kTakPan       = 0.24f;
 constexpr float kTakFleckBpHz = 1120.0f;
 constexpr float kTakFleckBpQ  = 0.46f;
@@ -459,13 +471,13 @@ constexpr float kWoodTapPan[kWoodTaps]   = { -0.72f, 0.72f, -0.68f, 0.68f, -0.64
 constexpr float kHandPitchStartRatio = 1.12f;
 constexpr float kHandLpHz     = 460.0f;
 constexpr float kHandDecaySec = 0.32f;
-constexpr float kHandLevel    = 0.072f;
+constexpr float kHandLevel    = 0.10f;
 constexpr float kHandJingleHpHz = 1450.0f;
 constexpr float kHandJingleLpHz = 3800.0f;
 constexpr float kHandJingleGain = 0.2f; // x level
 constexpr float kHandShakerHpHz = 240.0f;
 constexpr float kHandShakerDecaySec = 0.34f;
-constexpr float kHandShakerLevel = 0.016f;
+constexpr float kHandShakerLevel = 0.024f;
 
 // Drum bus: 4-beat pan orbit depth .38; lowpass 2600 -> tanh(1.25x)/tanh(1.25)
 // waveshaper (2x) -> compressor (thr -5 dB, knee 5, ratio 2.2, att .008,
@@ -525,7 +537,8 @@ constexpr float kBreathExhaleSec = 6.5f;
 // felt bass: 40 Hz sine -> lowpass 88 -> gain .024 -> master (always on).
 constexpr float kFeltFreq = 40.0f;
 constexpr float kFeltLpHz = 88.0f;
-constexpr float kFeltGain = 0.024f;
+constexpr float kFeltGain = 0.007f; // Nathan 2026-10-08: felt sub was as loud as
+// the drone; reduced ~10.7 dB to a subtle floor (was 0.024).
 // Web master gain: MASTER=0.62 * 0.9 = 0.558 (web: fx.master.gain set to
 // MASTER*0.9 when sound is on). The native port omitted this, running ~5 dB
 // hot vs the web app.
@@ -849,6 +862,12 @@ private:
     Biquad droneApL_[3], droneApR_[3]; // all-pass drift chain
     float apLfoPhase_[3] = {};
     float orbitPhase_ = 0.0f;
+    float bellowsPhase_ = 0.0f, bellowsPhase2_ = 1.7f; // hand-pump LFOs
+    // Micro-delay widener: 9-sample delay on drone R channel for natural
+    // stereo width (0.19 ms — below echo threshold, just spatial).
+    static constexpr int kWideDelayN = 9;
+    float wideBuf_[kWideDelayN] = {};
+    int widePos_ = 0;
 
     // Slow drift tracks.
     float driftClock_ = 0.0f;
