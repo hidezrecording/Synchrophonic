@@ -111,12 +111,12 @@ void Sg9VuMeter::paint(juce::Graphics& g) {
     const float endAngle   = -pi * 0.5f + sweep * 0.5f;
     const float totalAngle = endAngle - startAngle;
 
-    struct Tick { float pos; const char* label; };
+    struct Tick { float pos; const char* label; bool labeled; };
     const Tick ticks[] = {
-        { 0.000f, "-20" }, { 0.300f, "-10" }, { 0.432f, "-7" },
-        { 0.520f,  "-5" }, { 0.610f,  "-3" }, { 0.647f, "-2" },
-        { 0.683f,  "-1" }, { 0.720f,   "0" }, { 0.813f, "+1" },
-        { 0.907f,  "+2" }, { 1.000f,  "+3" },
+        { 0.000f, "-20", true  }, { 0.300f, "-10", true  }, { 0.432f, "-7", false },
+        { 0.520f,  "-5", true  }, { 0.610f,  "-3", false }, { 0.647f, "-2", false },
+        { 0.683f,  "-1", false }, { 0.720f,   "0", true  }, { 0.813f, "+1", false },
+        { 0.907f,  "+2", false }, { 1.000f,  "+3", true  },
     };
     constexpr float kZeroPos = 0.72f;
     const float zeroAngle = startAngle + kZeroPos * totalAngle;
@@ -149,6 +149,7 @@ void Sg9VuMeter::paint(juce::Graphics& g) {
         g.setColour(c.withAlpha(0.9f));
         g.drawLine(cx + ca * r, cy + sa * r,
                    cx + ca * (r - 9.0f), cy + sa * (r - 9.0f), 2.0f);
+        if (!t.labeled) continue;
         const float nr = r + 16.0f;
         g.setColour(c);
         g.drawText(t.label, int(cx + ca * nr) - 24, int(cy + sa * nr) - 10,
