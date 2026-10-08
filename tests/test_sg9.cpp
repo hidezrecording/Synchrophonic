@@ -318,7 +318,7 @@ void testThirtySeconds() {
     double pk = peakWin(r, 0.0, 30.0);
     CHECK(pk <= 1.0, "30s: peak %.4f exceeds 1.0", pk);
     double e = rmsWin(r, 10.0, 30.0);
-    CHECK(e > 0.05 && e < 0.9, "30s: RMS %.4f outside sane range", e);
+    CHECK(e > 0.01 && e < 0.5, "30s: RMS %.4f outside sane range", e);
     std::printf("testThirtySeconds done (peak=%.3f rms=%.3f)\n", pk, e);
 }
 
@@ -345,9 +345,43 @@ void testSwitching() {
     double early = rmsWin(r4, 3.0, 6.0);
     double late = rmsWin(r4, 37.0, 40.0);
     std::printf("  tail: early=%.4f late=%.5f\n", early, late);
-    CHECK(early > 0.05, "tail: early reverb not audible (%.4f)", early);
+    CHECK(early > 0.005, "tail: early reverb not audible (%.4f)", early);
     CHECK(late < 0.03, "tail: late reverb did not decay (%.4f)", late);
     std::printf("testSwitching done\n");
+}
+
+// ---------------------------------------------------------------------------
+// 12. Dropout regression (Issue 1): render 10 s; after the 5 s attack, no
+// 100 ms window may drop below 5% of the max window RMS (catches dropouts
+// to silence; musical dynamics bottom out around 12%).
+// ---------------------------------------------------------------------------
+void testNoDropouts() {
+    sg9::Sg9Params p; // defaults
+    sg9::Sg9Dsp d = makeDsp(p);
+    d.triggerVoice(5);
+    Render r = render(d, 10.0);
+    CHECK(finiteBuf(r), "dropout: NaN/Inf");
+    const int W = (int)(0.1 * kSr); // 100 ms
+    const int nw = r.n / W;
+    double mx = 0.0;
+    std::vector<double> wrms((size_t)nw, 0.0);
+    for (int w = 0; w < nw; ++w) {
+        double s = 0.0;
+        for (int i = 0; i < W; ++i) {
+            int idx = w * W + i;
+            s += 0.5 * ((double)r.L[idx] * r.L[idx] + (double)r.R[idx] * r.R[idx]);
+        }
+        wrms[(size_t)w] = std::sqrt(s / W);
+        mx = std::max(mx, wrms[(size_t)w]);
+    }
+    for (int w = 0; w < nw; ++w) {
+        double t = w * 0.1;
+        if (t < 5.0) continue; // attack
+        CHECK(wrms[(size_t)w] > 0.05 * mx,
+              "dropout: window at %.1fs RMS %.4f < 5%% of max %.4f",
+              t, wrms[(size_t)w], mx);
+    }
+    std::printf("testNoDropouts done (maxWin=%.4f)\n", mx);
 }
 
 } // namespace
@@ -365,6 +399,7 @@ int main() {
     testDeterminism();
     testThirtySeconds();
     testSwitching();
+    testNoDropouts();
     std::printf("--------------------------------------------------\n");
     if (gFails == 0)
         std::printf("ALL TESTS PASSED (%d checks)\n", gChecks);

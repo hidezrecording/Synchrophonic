@@ -43,11 +43,11 @@ target_sources(Synchrophonic PRIVATE
 
 # The chakra illustration for the photo-as-interface GUI (source photo
 # supplied by Nathan; copied into the repo so the build is self-contained).
-# NAMESPACE Sg9Assets: the editor refers to Sg9Assets::chakrafigure_jpg.
+# NAMESPACE Sg9Assets: the editor refers to Sg9Assets::chakrafigure_png.
 # (Without NAMESPACE, JUCE defaults the namespace to plain "BinaryData".)
 juce_add_binary_data(Sg9Assets
     NAMESPACE Sg9Assets
-    SOURCES assets/chakra-figure.jpg
+    SOURCES assets/chakra-figure.png
 )
 
 target_include_directories(Synchrophonic PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/..)

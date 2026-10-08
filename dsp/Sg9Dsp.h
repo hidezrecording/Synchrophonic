@@ -642,8 +642,8 @@ struct PartitionedConvolver {
         int offset = 0; // Op, conv-rate samples (cumulative IR offset)
         int fftLen = 0; // 2*size
         std::vector<float> irReL, irImL, irReR, irImR; // fftLen each
-        std::vector<float> accL, accR; // input accumulators (size each)
-        int accFill = 0;
+        long long windowsDone = 0; // input windows already transformed
+        int slot = 0;   // stagger offset (ticks) within one period
     };
     void convolverTick(); // one baseBlock_ of conv-rate input in inStage_
     void buildDeciTaps();
@@ -668,6 +668,11 @@ struct PartitionedConvolver {
     bool outStaged_ = false;
     std::vector<float> tmpRe_, tmpIm_, accRe_, accIm_; // fft temps (max fftLen)
     std::vector<float> deciTaps_; // 64-tap 2x decimation prototype (host rate)
+    // Input history (circular, conv-rate) for just-in-time partition FFTs.
+    // Sized to cover the maximum partition offset plus one max window.
+    std::vector<float> histL_, histR_;
+    int histSize_ = 0;
+    int histPos_ = 0; // write position (oldest sample just before it)
     // Runtime resampler state (each history has its own cursor).
     std::vector<float> rsDeciHistL_, rsDeciHistR_;
     std::vector<float> rsInterHistL_, rsInterHistR_;

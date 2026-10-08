@@ -1373,6 +1373,14 @@ void PartitionedConvolver::prepare(double sampleRate, float irSeconds, int block
     buildDeciTaps();
     const int irLen = (int)std::ceil(irSeconds * convRate_);
     parts_.clear();
+    // Cap partitions at 16384 conv-rate samples (32768-pt FFT ≈ 5.6 ms for both
+    // channels — the largest single realtime burst). Larger partitions caused
+    // multi-millisecond realtime bursts (a 524288-pt FFT ≈ 200+ ms every
+    // ~11 s, 65536-pt ≈ 15 ms every 1.37 s — the audible "glitch every
+    // second"). The staggered scheduler in convolverTick() spreads partition
+    // FFTs across ticks, so the tail's many 16384-partitions don't fire in
+    // lockstep.
+    constexpr int kMaxPart = 16384;
     int rem = irLen, off = 0, s = baseBlock_, maxSO = 0;
     while (rem > 0) {
         for (int rep = 0; rep < 2 && rem > 0; ++rep) {
@@ -1381,20 +1389,37 @@ void PartitionedConvolver::prepare(double sampleRate, float irSeconds, int block
                 take = baseBlock_; // exact-sized tail (zero-padded)
                 while (take < rem) take <<= 1;
             }
+            if (take > kMaxPart) take = kMaxPart;
             Partition p;
             p.size = take; p.offset = off; p.fftLen = take * 2;
             p.irReL.assign((size_t)p.fftLen, 0.0f);
             p.irImL.assign((size_t)p.fftLen, 0.0f);
             p.irReR.assign((size_t)p.fftLen, 0.0f);
             p.irImR.assign((size_t)p.fftLen, 0.0f);
-            p.accL.assign((size_t)take, 0.0f);
-            p.accR.assign((size_t)take, 0.0f);
             parts_.push_back(std::move(p));
             maxSO = std::max(maxSO, take + off);
             off += take; rem -= take;
+            if (rem <= 0) break;
         }
-        s <<= 1;
+        if (s < kMaxPart) s <<= 1;
     }
+    // Stagger slots: same-size partitions would otherwise FFT in lockstep.
+    // Each partition does window j at tick (j+1)*(S/B)+slot, where slot spreads
+    // them across one period. Clamped to the available slack (O-S)/B so the
+    // result still lands before its output is read.
+    for (size_t pi = 0; pi < parts_.size(); ++pi) {
+        auto& p = parts_[pi];
+        const int period = p.size / baseBlock_;
+        int slot = (int)((pi * 37) % (size_t)period);
+        const int slack = (p.offset - p.size) / baseBlock_;
+        if (slot > slack) slot = (slack > 0) ? slack : 0;
+        p.slot = slot;
+    }
+    // Input history: must retain max partition offset + one max window so a
+    // partition FFT can read any not-yet-transformed input window.
+    histSize_ = maxSO + kMaxPart + 4 * baseBlock_;
+    histL_.assign((size_t)histSize_, 0.0f);
+    histR_.assign((size_t)histSize_, 0.0f);
     outLen_ = maxSO + 4 * baseBlock_;
     outBufL_.assign((size_t)outLen_, 0.0f);
     outBufR_.assign((size_t)outLen_, 0.0f);
@@ -1417,11 +1442,12 @@ void PartitionedConvolver::prepare(double sampleRate, float irSeconds, int block
 
 void PartitionedConvolver::reset() {
     for (auto& p : parts_) {
-        std::fill(p.accL.begin(), p.accL.end(), 0.0f);
-        std::fill(p.accR.begin(), p.accR.end(), 0.0f);
-        p.accFill = 0;
+        p.windowsDone = 0;
         // IR spectra are preserved.
     }
+    std::fill(histL_.begin(), histL_.end(), 0.0f);
+    std::fill(histR_.begin(), histR_.end(), 0.0f);
+    histPos_ = 0;
     std::fill(outBufL_.begin(), outBufL_.end(), 0.0f);
     std::fill(outBufR_.begin(), outBufR_.end(), 0.0f);
     std::fill(inStageL_.begin(), inStageL_.end(), 0.0f);
@@ -1439,6 +1465,18 @@ void PartitionedConvolver::reset() {
 
 void PartitionedConvolver::setIR(const float* irL, const float* irR, int numSamples) {
     if (!irL || !irR || numSamples <= 0 || parts_.empty() || deciTaps_.empty()) return;
+    // Web Audio ConvolverNode equal-power normalization (spec, normalize=true
+    // is the web engine's default and what the approved web mix relies on).
+    // Without it the 30 s noise IR's raw energy makes the space return
+    // ~+45 dB too hot (space blaring, drone inaudible).
+    double sumSq = 0.0;
+    for (int i = 0; i < numSamples; ++i)
+        sumSq += (double)irL[i] * irL[i] + (double)irR[i] * irR[i];
+    double power = std::sqrt(sumSq / (2.0 * (double)numSamples));
+    const double kMinPower = 0.000125;
+    if (!std::isfinite(power) || power < kMinPower) power = kMinPower;
+    const double normScale = (1.0 / power) * 0.00125 * (44100.0 / sampleRate_);
+    const float irGain = (float)(2.0 * normScale); // 2x = conv-rate sum scaling
     const int convLen = numSamples / 2;
     // Offline 2x decimation (even phase, matching the runtime path).
     std::vector<float> dL((size_t)convLen), dR((size_t)convLen);
@@ -1458,9 +1496,9 @@ void PartitionedConvolver::setIR(const float* irL, const float* irR, int numSamp
             const float* src = (ch == 0) ? dL.data() : dR.data();
             for (int i = 0; i < p.size; ++i) {
                 const int si = p.offset + i;
-                // x2: the conv-rate discrete sum needs the rate-ratio scaling
-                // to match a host-rate convolution's amplitude.
-                tmpRe_[(size_t)i] = (si < convLen) ? 2.0f * src[si] : 0.0f;
+                // irGain: 2x conv-rate discrete-sum scaling * Web Audio
+                // equal-power normalization (see above).
+                tmpRe_[(size_t)i] = (si < convLen) ? irGain * src[si] : 0.0f;
                 tmpIm_[(size_t)i] = 0.0f;
             }
             for (int i = p.size; i < p.fftLen; ++i)
@@ -1478,37 +1516,60 @@ void PartitionedConvolver::setIR(const float* irL, const float* irR, int numSamp
 
 void PartitionedConvolver::convolverTick() {
     const int B = baseBlock_;
-    for (auto& p : parts_) {
-        float* aL = p.accL.data() + p.accFill;
-        float* aR = p.accR.data() + p.accFill;
-        for (int i = 0; i < B; ++i) { aL[i] = inStageL_[(size_t)i]; aR[i] = inStageR_[(size_t)i]; }
-        p.accFill += B;
-        if (p.accFill < p.size) continue;
-        const int N = p.fftLen;
-        const long long outBase = totalIn_ + B - p.size + p.offset;
-        for (int ch = 0; ch < 2; ++ch) {
-            const float* acc = (ch == 0) ? p.accL.data() : p.accR.data();
-            for (int i = 0; i < p.size; ++i) { tmpRe_[(size_t)i] = acc[i]; tmpIm_[(size_t)i] = 0.0f; }
-            for (int i = p.size; i < N; ++i) tmpRe_[(size_t)i] = tmpIm_[(size_t)i] = 0.0f;
-            fft(tmpRe_.data(), tmpIm_.data(), N, false);
-            const float* hRe = (ch == 0) ? p.irReL.data() : p.irReR.data();
-            const float* hIm = (ch == 0) ? p.irImL.data() : p.irImR.data();
-            for (int i = 0; i < N; ++i) {
-                const float xr = tmpRe_[(size_t)i], xi = tmpIm_[(size_t)i];
-                accRe_[(size_t)i] = xr * hRe[i] - xi * hIm[i];
-                accIm_[(size_t)i] = xr * hIm[i] + xi * hRe[i];
-            }
-            fft(accRe_.data(), accIm_.data(), N, true);
-            float* outBuf = (ch == 0) ? outBufL_.data() : outBufR_.data();
-            const int twoS = 2 * p.size;
-            for (int i = 0; i < twoS; ++i) {
-                const int idx = (int)((outBase + i) % outLen_);
-                outBuf[idx] += accRe_[(size_t)i];
-            }
-        }
-        p.accFill = 0;
+    // 1. Commit B conv-rate input samples to the circular history.
+    for (int i = 0; i < B; ++i) {
+        histL_[(size_t)histPos_] = inStageL_[(size_t)i];
+        histR_[(size_t)histPos_] = inStageR_[(size_t)i];
+        if (++histPos_ == histSize_) histPos_ = 0;
     }
     totalIn_ += B;
+
+    // 2. Staggered partition FFTs. Window j of a size-S partition is ready
+    //    once totalIn_ >= (j+1)*S; it is transformed at tick
+    //    (j+1)*(S/B)+slot, spreading same-size partitions across their period
+    //    instead of bursting them in lockstep (the "glitch every second").
+    //    slot <= (O-S)/B guarantees the result lands before its output
+    //    (starting at j*S+O) is read.
+    const long long tick = totalIn_ / B;
+    for (auto& p : parts_) {
+        const int S = p.size;
+        const long long period = S / B;
+        const long long windowsReady = totalIn_ / S;
+        while (p.windowsDone < windowsReady) {
+            const long long j = p.windowsDone;
+            const long long schedTick = (j + 1) * period + p.slot;
+            if (tick < schedTick) break; // not its slot yet
+            const long long outBase = j * (long long)S + p.offset;
+            const int N = p.fftLen;
+            for (int ch = 0; ch < 2; ++ch) {
+                const float* hist = (ch == 0) ? histL_.data() : histR_.data();
+                // Copy window [j*S,(j+1)*S] from circular history to linear tmp.
+                long long hi = (long long)histPos_ - (totalIn_ - j * (long long)S);
+                hi %= histSize_; if (hi < 0) hi += histSize_;
+                const int first = (int)std::min<long long>(S, histSize_ - hi);
+                for (int i = 0; i < first; ++i) tmpRe_[(size_t)i] = hist[(size_t)(hi + i)];
+                for (int i = first; i < S; ++i) tmpRe_[(size_t)i] = hist[(size_t)i - first];
+                for (int i = 0; i < S; ++i) tmpIm_[(size_t)i] = 0.0f;
+                for (int i = S; i < N; ++i) tmpRe_[(size_t)i] = tmpIm_[(size_t)i] = 0.0f;
+                fft(tmpRe_.data(), tmpIm_.data(), N, false);
+                const float* hRe = (ch == 0) ? p.irReL.data() : p.irReR.data();
+                const float* hIm = (ch == 0) ? p.irImL.data() : p.irImR.data();
+                for (int i = 0; i < N; ++i) {
+                    const float xr = tmpRe_[(size_t)i], xi = tmpIm_[(size_t)i];
+                    accRe_[(size_t)i] = xr * hRe[i] - xi * hIm[i];
+                    accIm_[(size_t)i] = xr * hIm[i] + xi * hRe[i];
+                }
+                fft(accRe_.data(), accIm_.data(), N, true);
+                float* outBuf = (ch == 0) ? outBufL_.data() : outBufR_.data();
+                const int twoS = 2 * S;
+                for (int i = 0; i < twoS; ++i) {
+                    const int idx = (int)((outBase + i) % outLen_);
+                    outBuf[idx] += accRe_[(size_t)i];
+                }
+            }
+            p.windowsDone++;
+        }
+    }
     const long long start = totalIn_ - B;
     for (int i = 0; i < B; ++i) {
         const int idx = (int)((start + i) % outLen_);
