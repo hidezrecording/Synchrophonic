@@ -69,11 +69,11 @@ private:
     // Mixer faders (left margin) + selector boxes (right margin), all wired
     // to the APVTS via attachments.
     juce::Slider faderSliders_[5];
-    std::unique_ptr<juce::SliderAttachment> faderAttach_[5];
+    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> faderAttach_[5];
     juce::ComboBox selBoxes_[5];
-    std::unique_ptr<juce::ComboBoxAttachment> selAttach_[5];
+    std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> selAttach_[5];
     juce::TextButton pulseButton_;
-    std::unique_ptr<juce::ButtonAttachment> pulseAttach_;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> pulseAttach_;
 
     int selectedVoice_ = 5; // Sacral
     int dragVoice_ = -1;

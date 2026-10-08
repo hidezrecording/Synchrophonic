@@ -181,7 +181,7 @@ Sg9Editor::Sg9Editor(Sg9Processor& proc)
         faderSliders_[i].setTextBoxStyle(juce::Slider::TextBoxBelow,
                                          false, 42, 18);
         addAndMakeVisible(faderSliders_[i]);
-        faderAttach_[i] = std::make_unique<juce::SliderAttachment>(
+        faderAttach_[i] = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
             proc_.apvts, kFaderIds[i], faderSliders_[i]);
 
         juce::StringArray items;
@@ -189,13 +189,13 @@ Sg9Editor::Sg9Editor(Sg9Processor& proc)
             items.add(kSelItems[i][k]);
         selBoxes_[i].addItemList(items, 1);
         addAndMakeVisible(selBoxes_[i]);
-        selAttach_[i] = std::make_unique<juce::ComboBoxAttachment>(
+        selAttach_[i] = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment>(
             proc_.apvts, kSelIds[i], selBoxes_[i]);
     }
 
     pulseButton_.setClickingTogglesState(true);
     addAndMakeVisible(pulseButton_);
-    pulseAttach_ = std::make_unique<juce::ButtonAttachment>(
+    pulseAttach_ = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(
         proc_.apvts, "pulse_on", pulseButton_);
 
     startTimerHz(30);
