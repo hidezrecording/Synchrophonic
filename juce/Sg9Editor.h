@@ -5,7 +5,13 @@
 
 // Synchrophonic editor — the web-app mockup as a native GUI.
 //
-// Layout (default 880x720, resizable):
+// Layout (design authored at 880x720):
+//   * A ComponentBoundsConstrainer locks user resizing to the 880:720
+//     aspect (550x450 .. 1320x1080), so the design scales instead of
+//     reflowing and can never jumble.
+//   * resized() additionally scales-to-fit and centers the design, so even
+//     a host-imposed odd size (e.g. a restored standalone window) lays out
+//     cleanly with margins instead of breaking.
 //   * The dark chakra-figure photo (embedded via the Sg9Assets binary-data
 //     target) is the full-bleed background — the interface IS the figure.
 //   * Nine chakra hit zones sit on the figure's symbols: tap to
@@ -121,13 +127,18 @@ private:
     uint32_t lastTriggerMs_ = 0;
     int lastPadVoicing_ = -1;
 
-    // Layout metrics (computed in resized()).
+    // Layout metrics (screen coords, computed in resized()).
     float photoX_ = 0.0f, photoY_ = 0.0f, photoW_ = 0.0f, photoH_ = 0.0f;
     float hitR_ = 42.0f;
     float stripTop_ = 0.0f;
+    float uiScale_ = 1.0f; // design scale (design is authored at 880x720)
     juce::Rectangle<float> readoutRect_;
     juce::Rectangle<float> faderLabelRects_[5];
     juce::Rectangle<float> selLabelRects_[5];
+
+    // Fixed-aspect resize constrainer (user resizing stays on the 880:720
+    // design aspect; see constructor).
+    juce::ComponentBoundsConstrainer constrainer_;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(Sg9Editor)
 };

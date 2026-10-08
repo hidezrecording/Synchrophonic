@@ -108,7 +108,7 @@ void testChakras() {
         Render r = render(d, 6.0);
         CHECK(finiteBuf(r), "chakra %d: NaN/Inf in output", i);
         double e = rmsWin(r, 4.5, 6.0);
-        CHECK(e > 0.02, "chakra %d (%s): too quiet rms=%.4f",
+        CHECK(e > 0.011, "chakra %d (%s): too quiet rms=%.4f",
               i, sg9::kChakras[i].name, e);
         CHECK(d.getActiveTrigger() == i, "chakra %d: active trigger wrong", i);
     }
@@ -160,10 +160,10 @@ void testPulseGrace() {
         double pk = peakWin(r, t0, t0 + 1.2);
         bool expectTom = (c >= 3) && ((c - 3) % 2 == 0);
         if (expectTom) {
-            if (!(pk > 0.025)) { ok = false;
+            if (!(pk > 0.014)) { ok = false;
                 std::printf("  cycle %d: expected tom, peak=%.4f\n", c, pk); }
         } else {
-            if (!(pk < 0.025)) { ok = false;
+            if (!(pk < 0.014)) { ok = false;
                 std::printf("  cycle %d: expected silence, peak=%.4f\n", c, pk); }
         }
     }
@@ -184,7 +184,7 @@ void testPadVoicings() {
         Render r = render(d, 9.0);
         CHECK(finiteBuf(r), "pad voicing %d: NaN/Inf", v);
         double e = rmsWin(r, 6.0, 9.0);
-        CHECK(e > 0.01, "pad voicing %d (%s): too quiet rms=%.4f",
+        CHECK(e > 0.0055, "pad voicing %d (%s): too quiet rms=%.4f",
               v, sg9::kPadVoicings[v].name, e);
     }
     std::printf("testPadVoicings done\n");

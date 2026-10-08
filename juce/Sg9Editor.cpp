@@ -140,7 +140,7 @@ void Sg9VuMeter::paint(juce::Graphics& g) {
         g.strokePath(p, juce::PathStrokeType(3.0f));
     }
 
-    g.setFont(sg9Font(11.0f));
+    g.setFont(sg9Font(11.0f * w / 132.0f));
     for (const auto& t : ticks) {
         const float a = angleFor(t.pos);
         const float ca = std::cos(a), sa = std::sin(a);
@@ -166,7 +166,7 @@ void Sg9VuMeter::paint(juce::Graphics& g) {
     g.setColour(juce::Colour(0x88000000));
     g.drawEllipse(cx - 4.5f, cy - 4.5f, 9.0f, 9.0f, 1.0f);
 
-    g.setFont(sg9Font(10.0f));
+    g.setFont(sg9Font(10.0f * w / 132.0f));
     g.setColour(juce::Colour(0x66ffffff));
     g.drawText(left_ ? "L" : "R", int(cx) + 10, int(cy) - 24, 24, 16,
                juce::Justification::centredLeft);
@@ -277,7 +277,12 @@ Sg9Editor::Sg9Editor(Sg9Processor& proc)
       pulseButton_("Pulse") {
     setSize(880, 720);
     setResizable(true, true);
-    setResizeLimits(560, 420, 1760, 1440);
+    // Lock the design aspect: resizing scales the 880x720 layout instead
+    // of reflowing it, so controls can never end up in weird places.
+    constrainer_.setFixedAspectRatio(880.0 / 720.0);
+    constrainer_.setMinimumSize(550, 450);
+    constrainer_.setMaximumSize(1320, 1080);
+    setConstrainer(&constrainer_);
 
     photo_ = juce::ImageFileFormat::loadFrom(Sg9Assets::chakrafigure_png,
                                              (size_t) Sg9Assets::chakrafigure_pngSize);
@@ -354,55 +359,64 @@ int Sg9Editor::zoneAt(float x, float y) const {
 }
 
 void Sg9Editor::resized() {
-    const int W = getWidth(), H = getHeight();
-    const float fW = (float) W, fH = (float) H;
+    const float fW = (float) getWidth(), fH = (float) getHeight();
 
-    // Bottom control strip: faders in a row, selectors beneath them.
-    const float stripH = juce::jlimit(150.0f, 190.0f, fH * 0.24f);
-    stripTop_ = fH - stripH;
+    // Scale-to-fit: the design is authored at 880x720. The constrainer
+    // keeps user resizing on-aspect, but a host can impose any size (e.g.
+    // the standalone restoring a previous window) — scaling the whole
+    // design and centering it means the layout never jumbles.
+    const float s = juce::jmin(fW / 880.0f, fH / 720.0f);
+    uiScale_ = s;
+    const float dX = (fW - 880.0f * s) * 0.5f; // letterbox offset
+    const float dY = (fH - 720.0f * s) * 0.5f;
+
+    // Design-space constants (880x720), scaled to screen.
+    const float stripH = 172.8f * s;
+    stripTop_ = dY + 547.2f * s;
 
     // The figure fills the space above the strip so every chakra stays
     // clear of (and tappable above) the controls.
-    photoH_ = stripTop_ - 16.0f;
+    photoH_ = 531.2f * s;
     photoW_ = photoH_ * (1392.0f / 1680.0f);
-    if (photoW_ > fW) {
-        photoW_ = fW;
-        photoH_ = photoW_ * (1680.0f / 1392.0f);
-    }
-    photoX_ = (fW - photoW_) * 0.5f;
-    photoY_ = 8.0f;
+    photoX_ = dX + (880.0f * s - photoW_) * 0.5f;
+    photoY_ = dY + 8.0f * s;
     hitR_ = 42.0f * (photoH_ / 780.0f);
 
-    incense_.setBounds(0, 0, W, H);
+    incense_.setBounds(0, 0, (int) fW, (int) fH);
     incense_.setPhotoRect(photoX_, photoY_, photoW_, photoH_);
 
     // VU meters flanking the head.
-    const float mw = juce::jlimit(90.0f, 150.0f, fW * 0.15f);
-    const float mh = mw * 0.71f;
-    meterL_.setBounds(6, 52, (int) mw, (int) mh);
-    meterR_.setBounds(W - 6 - (int) mw, 52, (int) mw, (int) mh);
+    const float mw = 132.0f * s, mh = 93.7f * s;
+    meterL_.setBounds((int) (dX + 6.0f * s), (int) (dY + 52.0f * s),
+                      (int) mw, (int) mh);
+    meterR_.setBounds((int) (dX + 874.0f * s - mw), (int) (dY + 52.0f * s),
+                      (int) mw, (int) mh);
 
     // Five fader columns; the utility column (Pulse + readout) on the right.
-    const float utilW = juce::jlimit(150.0f, 260.0f, fW * 0.29f);
-    const float colsW = juce::jmax(5.0f * 64.0f, fW - utilW - 48.0f);
-    const float colW = colsW / 5.0f;
-    const float x0 = 24.0f;
-    const float sliderW = juce::jmin(50.0f, colW - 12.0f);
+    const float colsW = 576.8f * s;
+    const float colW = 115.36f * s;
+    const float x0 = dX + 24.0f * s;
+    const float sliderW = 50.0f * s;
     for (int i = 0; i < 5; ++i) {
         const float cx = x0 + i * colW;
-        faderLabelRects_[i] = { cx, stripTop_ + 6.0f, colW, 16.0f };
+        faderLabelRects_[i] = { cx, stripTop_ + 6.0f * s, colW, 16.0f * s };
+        faderSliders_[i].setTextBoxStyle(juce::Slider::TextBoxBelow, false,
+                                         (int) (44.0f * s), (int) (18.0f * s));
         faderSliders_[i].setBounds((int) (cx + colW * 0.5f - sliderW * 0.5f),
-                                   (int) (stripTop_ + 24.0f),
-                                   (int) sliderW, 96);
-        selLabelRects_[i] = { cx, stripTop_ + 122.0f, colW, 13.0f };
-        selBoxes_[i].setBounds((int) (cx + 5.0f), (int) (stripTop_ + 136.0f),
-                               (int) (colW - 10.0f), 26);
+                                   (int) (stripTop_ + 24.0f * s),
+                                   (int) sliderW, (int) (96.0f * s));
+        selLabelRects_[i] = { cx, stripTop_ + 122.0f * s, colW, 13.0f * s };
+        selBoxes_[i].setBounds((int) (cx + 5.0f * s),
+                               (int) (stripTop_ + 136.0f * s),
+                               (int) (colW - 10.0f * s), (int) (26.0f * s));
     }
 
-    const float ux = x0 + colsW + 20.0f;
-    pulseButton_.setBounds((int) ux, (int) (stripTop_ + 24.0f), 130, 32);
-    readoutRect_ = { ux, stripTop_ + 64.0f,
-                     juce::jmax(120.0f, fW - ux - 16.0f), stripH - 72.0f };
+    const float ux = x0 + colsW + 20.0f * s;
+    pulseButton_.setBounds((int) ux, (int) (stripTop_ + 24.0f * s),
+                           (int) (130.0f * s), (int) (32.0f * s));
+    readoutRect_ = { ux, stripTop_ + 64.0f * s,
+                     juce::jmax(120.0f * s, dX + 864.0f * s - ux),
+                     stripH - 72.0f * s };
 }
 
 void Sg9Editor::timerCallback() {
@@ -425,7 +439,7 @@ void Sg9Editor::paint(juce::Graphics& g) {
     } else {
         g.setColour(juce::Colour(0xff141414));
         g.fillRect(juce::Rectangle<float>(photoX_, photoY_, photoW_, photoH_));
-        g.setFont(uiFont(24.0f));
+        g.setFont(uiFont(24.0f * uiScale_));
         g.setColour(juce::Colour(0x66ffffff));
         g.drawText("Synchrophonic",
                    juce::Rectangle<float>(photoX_, photoY_, photoW_, photoH_),
@@ -438,31 +452,31 @@ void Sg9Editor::paint(juce::Graphics& g) {
 
     // Per-zone glow: radial gradient in the chakra color, alpha from the
     // live voice meter.
+    const float glowR = kGlowRadius * uiScale_;
     for (int i = 0; i < 9; ++i) {
         const auto c = photoToScreen(kZoneNX[i], kZoneNY[i]);
         const float level = juce::jlimit(0.0f, 1.0f, proc_.getVoiceLevelMeter(i));
         const float alpha = 0.10f + 0.60f * level;
         const juce::Colour col = zoneColour(i).withAlpha(alpha);
         juce::ColourGradient glow(col, c.x, c.y,
-                                  juce::Colour(0x00000000), c.x + kGlowRadius, c.y, true);
+                                  juce::Colour(0x00000000), c.x + glowR, c.y, true);
         g.setGradientFill(glow);
-        g.fillEllipse(c.x - kGlowRadius, c.y - kGlowRadius,
-                      kGlowRadius * 2.0f, kGlowRadius * 2.0f);
+        g.fillEllipse(c.x - glowR, c.y - glowR, glowR * 2.0f, glowR * 2.0f);
 
         // Small marker dot at the zone center (discoverability).
         g.setColour(zoneColour(i).withAlpha(0.55f + 0.35f * level));
-        const float dr = (i >= 7) ? 7.0f : 5.0f; // foundation dots are UI-drawn
+        const float dr = ((i >= 7) ? 7.0f : 5.0f) * uiScale_; // foundation dots are UI-drawn
         g.fillEllipse(c.x - dr, c.y - dr, dr * 2.0f, dr * 2.0f);
     }
 
     // Fader + selector labels.
-    g.setFont(uiFont(11.0f));
+    g.setFont(uiFont(11.0f * uiScale_));
     g.setColour(juce::Colour(0x99ffffff));
     for (int i = 0; i < 5; ++i) {
         g.drawText(kFaderNames[i], faderLabelRects_[i],
                    juce::Justification::centred);
     }
-    g.setFont(uiFont(9.0f));
+    g.setFont(uiFont(9.0f * uiScale_));
     g.setColour(juce::Colour(0x77ffffff));
     for (int i = 0; i < 5; ++i) {
         g.drawText(kSelNames[i], selLabelRects_[i],
@@ -477,37 +491,37 @@ void Sg9Editor::paint(juce::Graphics& g) {
         g.drawRoundedRectangle(readoutRect_, 9.0f, 1.0f);
 
         const int sv = juce::jlimit(0, 8, selectedVoice_);
-        g.setFont(uiFont(14.0f));
+        g.setFont(uiFont(14.0f * uiScale_));
         g.setColour(juce::Colour(0xffffffff));
         g.drawText(juce::String(Sg9Processor::voiceName(sv)) + " - " +
                    juce::String(int(Sg9Processor::voiceFreq(sv))) + " Hz",
-                   readoutRect_.getX(), readoutRect_.getY() + 6.0f,
-                   readoutRect_.getWidth(), 22.0f,
+                   readoutRect_.getX(), readoutRect_.getY() + 6.0f * uiScale_,
+                   readoutRect_.getWidth(), 22.0f * uiScale_,
                    juce::Justification::centred);
 
         float lvl = 58.0f;
         if (auto* p = proc_.apvts.getParameter(voiceLevelId(sv)))
             lvl = p->convertFrom0to1(p->getValue()); // 0..100 natural range
-        g.setFont(uiFont(12.0f));
+        g.setFont(uiFont(12.0f * uiScale_));
         g.setColour(zoneColour(sv));
         g.drawText("Level " + juce::String(int(lvl + 0.5f)) + "%",
-                   readoutRect_.getX(), readoutRect_.getY() + 30.0f,
-                   readoutRect_.getWidth(), 18.0f,
+                   readoutRect_.getX(), readoutRect_.getY() + 30.0f * uiScale_,
+                   readoutRect_.getWidth(), 18.0f * uiScale_,
                    juce::Justification::centred);
 
-        g.setFont(uiFont(11.0f));
+        g.setFont(uiFont(11.0f * uiScale_));
         const int active = proc_.getActiveTrigger();
         if (active < 0) {
             g.setColour(juce::Colour(0x66ffffff));
             g.drawText("TAP A CHAKRA",
-                       readoutRect_.getX(), readoutRect_.getY() + 52.0f,
-                       readoutRect_.getWidth(), 18.0f,
+                       readoutRect_.getX(), readoutRect_.getY() + 52.0f * uiScale_,
+                       readoutRect_.getWidth(), 18.0f * uiScale_,
                        juce::Justification::centred);
         } else if (inGracePeriod()) {
             g.setColour(juce::Colour(0xffffb347));
             g.drawText("WAITING - BREATH",
-                       readoutRect_.getX(), readoutRect_.getY() + 52.0f,
-                       readoutRect_.getWidth(), 18.0f,
+                       readoutRect_.getX(), readoutRect_.getY() + 52.0f * uiScale_,
+                       readoutRect_.getWidth(), 18.0f * uiScale_,
                        juce::Justification::centred);
         } else {
             bool pulseOn = true;
@@ -516,8 +530,8 @@ void Sg9Editor::paint(juce::Graphics& g) {
             g.setColour(pulseOn ? juce::Colour(0xff9fd8a8)
                                 : juce::Colour(0x66ffffff));
             g.drawText(pulseOn ? "PULSE ON" : "PULSE OFF",
-                       readoutRect_.getX(), readoutRect_.getY() + 52.0f,
-                       readoutRect_.getWidth(), 18.0f,
+                       readoutRect_.getX(), readoutRect_.getY() + 52.0f * uiScale_,
+                       readoutRect_.getWidth(), 18.0f * uiScale_,
                        juce::Justification::centred);
         }
     }

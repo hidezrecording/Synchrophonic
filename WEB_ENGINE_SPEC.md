@@ -197,6 +197,8 @@ lowpass 2600 → tanh(1.25x)/tanh(1.25) waveshaper (2x) → compressor
 - pulse → pulse fader → analyser → waveshaper → {master, spaceIn}
 - drums → drums fader → drumTone → waveshaper → comp → {master, spaceIn}
 - felt bass: 40 Hz sine → lowpass 88 → gain .024 → master (always on)
+- Master output gain: MASTER=0.62, fx.master.gain = MASTER*0.9 = 0.558
+  (sg9web.js:17,1277). Applied before the output safety limiter.
 - NO compressor on drone/pads path. NO noise/hiss source anywhere.
 - Fader defaults: DRONE 1.00, PULSE .69, PADS .32, BEAT .92, SPACE .68.
 - Param defaults: droneTone=paSaSa, tempoSource=Earth Day, padVoicing=majorThird,

@@ -526,6 +526,10 @@ constexpr float kBreathExhaleSec = 6.5f;
 constexpr float kFeltFreq = 40.0f;
 constexpr float kFeltLpHz = 88.0f;
 constexpr float kFeltGain = 0.024f;
+// Web master gain: MASTER=0.62 * 0.9 = 0.558 (web: fx.master.gain set to
+// MASTER*0.9 when sound is on). The native port omitted this, running ~5 dB
+// hot vs the web app.
+constexpr float kMasterGain = 0.558f;
 // NO compressor on drone/pads path. NO noise/hiss source anywhere.
 constexpr float kDefaultFaderDrone = 1.00f;
 constexpr float kDefaultFaderPulse = 0.69f;

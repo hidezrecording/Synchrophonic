@@ -2126,11 +2126,13 @@ void Sg9Dsp::renderMaster(float* mixL, float* mixR, int n) {
     renderDroneDelayToSpace(busSpaceDelayL_.data(), busSpaceDelayR_.data(), n);
     renderSpace(sSL, sSR, busSpaceDelayL_.data(), busSpaceDelayR_.data(),
                 mixL, mixR, n);
-    // Gentle tanh safety + peak meters.
+    // Web master gain (0.558) then gentle tanh safety + peak meters.
+    // (The web has no tanh; it is a plugin-side safety against DAC clipping
+    // and is inert at these levels.)
     float pkL = 0.0f, pkR = 0.0f;
     for (int i = 0; i < n; ++i) {
-        mixL[i] = std::tanh(mixL[i]);
-        mixR[i] = std::tanh(mixR[i]);
+        mixL[i] = std::tanh(mixL[i] * kMasterGain);
+        mixR[i] = std::tanh(mixR[i] * kMasterGain);
         pkL = std::max(pkL, std::fabs(mixL[i]));
         pkR = std::max(pkR, std::fabs(mixR[i]));
     }
