@@ -5,7 +5,7 @@
 //       assets/chakra-figure.jpg)
 //
 // (juce_add_binary_data always generates BinaryData.h; the NAMESPACE option
-// makes the symbols Sg9Assets::chakra_figure_jpg / Sg9Assets::chakra_figure_jpgSize.)
+// makes the symbols Sg9Assets::chakrafigure_jpg / Sg9Assets::chakrafigure_jpgSize.)
 #include "BinaryData.h"
 
 namespace {
@@ -170,8 +170,8 @@ Sg9Editor::Sg9Editor(Sg9Processor& proc)
       pulseButton_("Pulse") {
     setSize(1120, 800);
 
-    photo_ = juce::ImageFileFormat::loadFrom(Sg9Assets::chakra_figure_jpg,
-                                             (size_t) Sg9Assets::chakra_figure_jpgSize);
+    photo_ = juce::ImageFileFormat::loadFrom(Sg9Assets::chakrafigure_jpg,
+                                             (size_t) Sg9Assets::chakrafigure_jpgSize);
 
     addAndMakeVisible(meterL_);
     addAndMakeVisible(meterR_);
