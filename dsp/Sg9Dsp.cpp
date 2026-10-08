@@ -779,7 +779,7 @@ void Sg9Dsp::renderDrone(float* busL, float* busR, int n) {
     renderDroneColorReeds(busL, busR, n);
 
     // Body filter -> dry (.90) + all-pass chain (send .10, return .66) ->
-    // orbit pan -> envelope * peak * 1.4x pre-fader gain. In place.
+    // orbit pan -> envelope * peak * pre-fader gain (kDronePreGain). In place.
     for (int i = 0; i < n; ++i) {
         float l = droneBodyLpL_.process(busL[i]);
         float r = droneBodyLpR_.process(busR[i]);
@@ -2141,13 +2141,14 @@ void Sg9Dsp::renderMaster(float* mixL, float* mixR, int n) {
     renderDroneDelayToSpace(busSpaceDelayL_.data(), busSpaceDelayR_.data(), n);
     renderSpace(sSL, sSR, busSpaceDelayL_.data(), busSpaceDelayR_.data(),
                 mixL, mixR, n);
-    // Web master gain (0.558) then gentle tanh safety + peak meters.
-    // (The web has no tanh; it is a plugin-side safety against DAC clipping
-    // and is inert at these levels.)
+    // Web master gain (0.558) * user master fader, then gentle tanh safety
+    // + peak meters. (The web has no tanh; it is a plugin-side safety against
+    // DAC clipping and is inert at these levels.)
     float pkL = 0.0f, pkR = 0.0f;
+    const float outGain = kMasterGain * params_.masterFader;
     for (int i = 0; i < n; ++i) {
-        mixL[i] = std::tanh(mixL[i] * kMasterGain);
-        mixR[i] = std::tanh(mixR[i] * kMasterGain);
+        mixL[i] = std::tanh(mixL[i] * outGain);
+        mixR[i] = std::tanh(mixR[i] * outGain);
         pkL = std::max(pkL, std::fabs(mixL[i]));
         pkR = std::max(pkR, std::fabs(mixR[i]));
     }
@@ -2166,7 +2167,7 @@ void Sg9Dsp::process(float* outL, float* outR, int numSamples) {
         float* drL = busDrumsL_.data(); float* drR = busDrumsR_.data();
         const bool voiceOn = (activeVoice_ >= 0 || releasing_);
         if (voiceOn) {
-            // Drone (1.4x pre-gain is inside renderDrone) -> DRONE fader.
+            // Drone (kDronePreGain pre-gain is inside renderDrone) -> DRONE fader.
             renderDrone(dL, dR, n);
             const float gD = params_.faderDrone;
             for (int i = 0; i < n; ++i) { dL[i] *= gD; dR[i] *= gD; }

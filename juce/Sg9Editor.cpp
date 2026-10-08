@@ -45,10 +45,11 @@ juce::String voiceLevelId(int v) {
     return "v" + juce::String(v + 1) + "_level";
 }
 
-const char* kFaderIds[5] = {
-    "fader_drone", "fader_pulse", "fader_pads", "fader_beat", "fader_space"
+const char* kFaderIds[6] = {
+    "fader_drone", "fader_pulse", "fader_pads", "fader_beat", "fader_space",
+    "master_fader"
 };
-const char* kFaderNames[5] = { "DRONE", "PULSE", "PADS", "BEAT", "SPACE" };
+const char* kFaderNames[6] = { "DRONE", "PULSE", "PADS", "BEAT", "SPACE", "MASTER" };
 
 const char* kSelIds[5] = {
     "drone_tone", "tempo_source", "pad_voicing", "beat_speed", "drum_pattern"
@@ -292,7 +293,7 @@ Sg9Editor::Sg9Editor(Sg9Processor& proc)
     addAndMakeVisible(meterR_);
     addAndMakeVisible(incense_); // above the figure, below the controls
 
-    for (int i = 0; i < 5; ++i) {
+    for (int i = 0; i < 6; ++i) {
         faderSliders_[i].setSliderStyle(juce::Slider::LinearVertical);
         faderSliders_[i].setTextBoxStyle(juce::Slider::TextBoxBelow,
                                          false, 44, 18);
@@ -300,13 +301,15 @@ Sg9Editor::Sg9Editor(Sg9Processor& proc)
         faderAttach_[i] = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
             proc_.apvts, kFaderIds[i], faderSliders_[i]);
 
-        juce::StringArray items;
-        for (int k = 0; k < kSelCounts[i]; ++k)
-            items.add(kSelItems[i][k]);
-        selBoxes_[i].addItemList(items, 1);
-        addAndMakeVisible(selBoxes_[i]);
-        selAttach_[i] = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment>(
-            proc_.apvts, kSelIds[i], selBoxes_[i]);
+        if (i < 5) { // MASTER (index 5) has no selector dropdown
+            juce::StringArray items;
+            for (int k = 0; k < kSelCounts[i]; ++k)
+                items.add(kSelItems[i][k]);
+            selBoxes_[i].addItemList(items, 1);
+            addAndMakeVisible(selBoxes_[i]);
+            selAttach_[i] = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment>(
+                proc_.apvts, kSelIds[i], selBoxes_[i]);
+        }
     }
 
     pulseButton_.setClickingTogglesState(true);
@@ -393,12 +396,14 @@ void Sg9Editor::resized() {
     meterR_.setBounds((int) (dX + 874.0f * s - mw), (int) (dY + 52.0f * s),
                       (int) mw, (int) mh);
 
-    // Five fader columns; the utility column (Pulse + readout) on the right.
+    // Six fader columns (DRONE PULSE PADS BEAT SPACE MASTER) in the same
+    // row width as before; the utility column (Pulse + readout) on the right
+    // is untouched. MASTER (index 5) has no selector beneath it.
     const float colsW = 576.8f * s;
-    const float colW = 115.36f * s;
+    const float colW = colsW / 6.0f;
     const float x0 = dX + 24.0f * s;
     const float sliderW = 50.0f * s;
-    for (int i = 0; i < 5; ++i) {
+    for (int i = 0; i < 6; ++i) {
         const float cx = x0 + i * colW;
         faderLabelRects_[i] = { cx, stripTop_ + 6.0f * s, colW, 16.0f * s };
         faderSliders_[i].setTextBoxStyle(juce::Slider::TextBoxBelow, false,
@@ -406,10 +411,12 @@ void Sg9Editor::resized() {
         faderSliders_[i].setBounds((int) (cx + colW * 0.5f - sliderW * 0.5f),
                                    (int) (stripTop_ + 24.0f * s),
                                    (int) sliderW, (int) (96.0f * s));
-        selLabelRects_[i] = { cx, stripTop_ + 122.0f * s, colW, 13.0f * s };
-        selBoxes_[i].setBounds((int) (cx + 5.0f * s),
-                               (int) (stripTop_ + 136.0f * s),
-                               (int) (colW - 10.0f * s), (int) (26.0f * s));
+        if (i < 5) {
+            selLabelRects_[i] = { cx, stripTop_ + 122.0f * s, colW, 13.0f * s };
+            selBoxes_[i].setBounds((int) (cx + 5.0f * s),
+                                   (int) (stripTop_ + 136.0f * s),
+                                   (int) (colW - 10.0f * s), (int) (26.0f * s));
+        }
     }
 
     const float ux = x0 + colsW + 20.0f * s;
@@ -473,7 +480,7 @@ void Sg9Editor::paint(juce::Graphics& g) {
     // Fader + selector labels.
     g.setFont(uiFont(11.0f * uiScale_));
     g.setColour(juce::Colour(0x99ffffff));
-    for (int i = 0; i < 5; ++i) {
+    for (int i = 0; i < 6; ++i) {
         g.drawText(kFaderNames[i], faderLabelRects_[i],
                    juce::Justification::centred);
     }

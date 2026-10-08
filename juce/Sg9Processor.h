@@ -93,6 +93,7 @@ private:
         std::atomic<float>* beatSpeed{};
         std::atomic<float>* beatPattern{};
         std::atomic<float>* pulseOn{};
+        std::atomic<float>* masterFader{};
     };
     ParamCache cache_;
 

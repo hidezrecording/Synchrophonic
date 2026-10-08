@@ -18,11 +18,12 @@
 //     trigger/stop a voice (monophonic), drag vertically to set its level;
 //     the sounding chakra glows with its live level.
 //   * Two VU meters (scale arc + needle only, no bezel) flank the head.
-//   * Bottom strip: five vertical faders in a row (DRONE PULSE PADS BEAT
-//     SPACE) with value boxes, and directly beneath each fader its compact
-//     selector dropdown (drone tone, tempo source, pad voicing, beat
-//     speed, beat pattern). A Pulse toggle and a small voice/grace readout
-//     sit in the right-hand utility column.
+//   * Bottom strip: six vertical faders in a row (DRONE PULSE PADS BEAT
+//     SPACE MASTER) with value boxes, and directly beneath the first five
+//     faders its compact selector dropdown (drone tone, tempo source, pad
+//     voicing, beat speed, beat pattern). MASTER has no selector. A Pulse
+//     toggle and a small voice/grace readout sit in the right-hand
+//     utility column.
 //   * Animated incense smoke rises from the sticks in the figure's hands
 //     (IncenseOverlay, transparent + mouse-transparent, ~30 fps).
 //
@@ -109,9 +110,11 @@ private:
     IncenseOverlay incense_;
 
     // Mixer faders + the selector dropdown beneath each fader, all wired to
-    // the APVTS via attachments. Order: DRONE PULSE PADS BEAT SPACE.
-    juce::Slider faderSliders_[5];
-    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> faderAttach_[5];
+    // the APVTS via attachments. Fader order: DRONE PULSE PADS BEAT SPACE
+    // MASTER. Only the first five faders have selectors; MASTER (index 5)
+    // is a bare fader.
+    juce::Slider faderSliders_[6];
+    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> faderAttach_[6];
     juce::ComboBox selBoxes_[5];
     std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> selAttach_[5];
     juce::TextButton pulseButton_;
@@ -133,7 +136,7 @@ private:
     float stripTop_ = 0.0f;
     float uiScale_ = 1.0f; // design scale (design is authored at 880x720)
     juce::Rectangle<float> readoutRect_;
-    juce::Rectangle<float> faderLabelRects_[5];
+    juce::Rectangle<float> faderLabelRects_[6];
     juce::Rectangle<float> selLabelRects_[5];
 
     // Fixed-aspect resize constrainer (user resizing stays on the 880:720

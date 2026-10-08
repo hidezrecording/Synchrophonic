@@ -1,6 +1,6 @@
 // SG-9 native DSP tests — NEW web-engine port.
 //
-// Covers: chakra triggering, drone 1.4x pre-gain, pulse tom grace period,
+// Covers: chakra triggering, drone pre-gain (kDronePreGain), pulse tom grace period,
 // pad voicings, beat patterns, tempo sources x speeds, drone tones,
 // harmony-follow FFT, determinism, 30 s NaN/peak, voice switching/stop,
 // convolution tail decay.
@@ -116,11 +116,13 @@ void testChakras() {
 }
 
 // ---------------------------------------------------------------------------
-// 2. Drone pre-fader gain is 1.4x.
+// 2. Drone pre-fader gain is kDronePreGain (3.2x per Nathan 2026-10-08:
+//    drone must sit 3-6 dB above pads as the lead voice).
 // ---------------------------------------------------------------------------
 void testDronePreGain() {
     sg9::Sg9Dsp d0 = makeDsp(soloParams());
-    CHECK(d0.getDronePreGain() == 1.4f, "default drone pre-gain != 1.4 (got %.3f)",
+    CHECK(d0.getDronePreGain() == sg9::kDronePreGain,
+          "default drone pre-gain != kDronePreGain (got %.3f)",
           d0.getDronePreGain());
     auto run = [](float pregain) {
         sg9::Sg9Params p = soloParams();

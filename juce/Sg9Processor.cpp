@@ -74,6 +74,12 @@ Sg9Processor::createLayout() {
     layout.add(fader01("fader_beat",  "Beat",  sg9::kDefaultFaderBeat));
     layout.add(fader01("fader_space", "Space", sg9::kDefaultFaderSpace));
 
+    // Master output trim (Nathan 2026-10-08): 0..1.25, default 1.0 = unity
+    // (the web 0.558 level). Allows turning up 25% or down to silence.
+    layout.add(std::make_unique<juce::AudioParameterFloat>(
+        juce::ParameterID{"master_fader", 1}, "Master",
+        juce::NormalisableRange<float>(0.0f, 1.25f, 0.001f), 1.0f));
+
     // Selectors (indices match the sg9::k* tables in Sg9Dsp.h).
     layout.add(choice("drone_tone", "Drone Tone",
         juce::StringArray{"Sa-Pa-Sa", "Sa", "Sa-Sa", "Sa-Ma-Sa", "Pa-Sa-Sa"},
@@ -124,6 +130,7 @@ Sg9Processor::Sg9Processor()
     cache_.beatSpeed   = raw("beat_speed");
     cache_.beatPattern = raw("drum_pattern");
     cache_.pulseOn     = raw("pulse_on");
+    cache_.masterFader = raw("master_fader");
 
     jassert(cache_.voiceLevel[0] != nullptr && cache_.pulseOn != nullptr);
 }
@@ -160,6 +167,7 @@ sg9::Sg9Params Sg9Processor::readParamsFromHost() const {
     p.beatSpeed   = juce::jlimit(0, 2, int(std::round(cache_.beatSpeed->load())));
     p.beatPattern = juce::jlimit(0, 8, int(std::round(cache_.beatPattern->load())));
     p.pulseOn     = cache_.pulseOn->load() > 0.5f;
+    p.masterFader = juce::jlimit(0.0f, 1.25f, cache_.masterFader->load());
     return p;
 }
 

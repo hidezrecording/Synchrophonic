@@ -173,8 +173,9 @@ constexpr float kDriftDetuneMaxCents = 2.35f;
 constexpr float kDriftJawariDepth  = 0.16f;  // +/-16% around .072
 constexpr float kDriftH3Depth      = 0.18f;  // +/-18% around .0075
 
-// Pre-fader: drone bus gets a FIXED 1.4x gain before the DRONE fader.
-constexpr float kDronePreGain = 1.4f;
+// Pre-fader: drone bus gets a FIXED kDronePreGain gain before the DRONE fader.
+constexpr float kDronePreGain = 3.2f; // Nathan 2026-10-08: drone must lead;
+// was 1.4 (web value); +7.2 dB puts drone ~4.5 dB above pads at defaults.
 
 // ---------------------------------------------------------------------------
 // 3. Reed / jawari Fourier coefficient tables (17 coeffs, sine phase,
@@ -714,6 +715,7 @@ struct Sg9Params {
     int beatSpeed   = kDefaultBeatSpeed;    // 0=full 1=half 2=quarter
     int beatPattern = kDefaultBeatPattern; // 0 = baladi
     bool pulseOn = true;
+    float masterFader = 1.0f; // user master output trim (1.0 = unity = web 0.558 level)
 };
 
 // ---------------------------------------------------------------------------
@@ -742,7 +744,7 @@ public:
     float getDronePreGain() const { return dronePreGain_; }
     void debugSetDronePreGain(float g) { dronePreGain_ = g; }
     // Post-envelope drone bus RMS (most recent block, pre-fader, excludes
-    // felt bass). Test seam for verifying the 1.4x pre-gain stage.
+    // felt bass). Test seam for verifying the pre-gain stage.
     float getDroneBusRms() const { return droneBusRms_; }
 
 private:
@@ -875,7 +877,7 @@ private:
     float driftLastRetrig_ = 0.0f;
     float droneBaseCut_ = 2000.0f; // baseCut at configure time (drift base)
     float droneBaseHz_ = 417.0f;
-    float dronePreGain_ = kDronePreGain; // test seam may override; default 1.4
+    float dronePreGain_ = kDronePreGain; // test seam may override
     float droneBusRms_ = 0.0f; // test seam: post-envelope drone bus RMS
     float driftFilter_ = 1.0f, driftFilterT_ = 1.0f, driftFilterS_ = 1.0f;
     float driftCore_ = 1.0f,   driftCoreT_ = 1.0f,   driftCoreS_ = 1.0f;
