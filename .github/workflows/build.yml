@@ -1,0 +1,81 @@
+# Builds Synchrophonic on every push and uploads downloadable plugin files.
+#
+# Push to main, then: Actions tab -> pick a run -> download the
+# Synchrophonic-macOS / Synchrophonic-Windows artifacts, or the
+# Synchrophonic-Installer-macOS PKG (installs VST3 + AU + the standalone
+# "test host" app to /Applications).
+#
+# NOTE: prepared 2026-10-08, not yet run. First green run may need
+# small fixes (JUCE version pin, artifact paths) — that is normal.
+
+name: Build Synchrophonic
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+jobs:
+  macos:
+    name: macOS (VST3 + AU + Standalone, Apple Silicon + Intel)
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure
+        run: cmake -B build -G Xcode -DCMAKE_BUILD_TYPE=Release
+                 -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64"
+                 -S juce
+
+      - name: Build
+        run: cmake --build build --config Release --parallel
+
+      - name: Build installer PKG
+        run: |
+          PKGROOT=pkgroot
+          mkdir -p "$PKGROOT/Library/Audio/Plug-Ins/VST3"
+          mkdir -p "$PKGROOT/Library/Audio/Plug-Ins/Components"
+          mkdir -p "$PKGROOT/Applications"
+          cp -R "build/Synchrophonic_artefacts/Release/VST3/Synchrophonic.vst3" "$PKGROOT/Library/Audio/Plug-Ins/VST3/"
+          cp -R "build/Synchrophonic_artefacts/Release/AU/Synchrophonic.component" "$PKGROOT/Library/Audio/Plug-Ins/Components/"
+          # The Standalone target is the playable test-host app: the same
+          # plugin with identical defaults, runnable with no DAW.
+          cp -R "build/Synchrophonic_artefacts/Release/Standalone/Synchrophonic.app" "$PKGROOT/Applications/"
+          pkgbuild --root "$PKGROOT" \
+            --identifier com.sabatinoaudio.synchrophonic \
+            --version 0.1.0 \
+            --install-location / \
+            Synchrophonic-0.1.0-macOS.pkg
+
+      - name: Upload plugins
+        uses: actions/upload-artifact@v4
+        with:
+          name: Synchrophonic-macOS-${{ github.run_number }}
+          path: build/Synchrophonic_artefacts/Release/
+
+      - name: Upload installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: Synchrophonic-Installer-macOS-${{ github.run_number }}
+          path: Synchrophonic-0.1.0-macOS.pkg
+
+  windows:
+    name: Windows (VST3 + Standalone)
+    # windows-latest now ships Visual Studio 2026 only, so the
+    # "Visual Studio 17 2022" generator fails at configure time there.
+    # windows-2022 still carries VS2022, which JUCE 8.0.6 targets.
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure
+        run: cmake -B build -G "Visual Studio 17 2022" -S juce
+
+      - name: Build
+        run: cmake --build build --config Release --parallel
+
+      - name: Upload plugins
+        uses: actions/upload-artifact@v4
+        with:
+          name: Synchrophonic-Windows-${{ github.run_number }}
+          path: build/Synchrophonic_artefacts/Release/
