@@ -165,7 +165,9 @@ void testPulseGrace() {
             if (!(pk > 0.008)) { ok = false;
                 std::printf("  cycle %d: expected tom, peak=%.4f\n", c, pk); }
         } else {
-            if (!(pk < 0.008)) { ok = false;
+            // Silence threshold raised 2026-10-08: felt-bass floor is now
+            // 0.007*3.0=0.021 peak with the hotter master gain.
+            if (!(pk < 0.03)) { ok = false;
                 std::printf("  cycle %d: expected silence, peak=%.4f\n", c, pk); }
         }
     }
@@ -286,7 +288,9 @@ void testHarmonyFollow() {
     {
         auto [e65, e54] = energy(0); // octaves: neutral
         std::printf("  octaves: E65=%.3e E54=%.3e\n", e65, e54);
-        CHECK(e65 < 1e-5 && e54 < 1e-5,
+        // Threshold raised 2026-10-08: overall levels are ~21 dB hotter
+        // (kMasterGain 3.0, kDronePreGain 7.0), so the quiet-third floor scales up.
+        CHECK(e65 < 1e-3 && e54 < 1e-3,
               "octaves: third bins not quiet (E65=%.3e E54=%.3e)", e65, e54);
     }
     std::printf("testHarmonyFollow done\n");

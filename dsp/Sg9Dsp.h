@@ -91,15 +91,16 @@ constexpr int kDefaultDroneTone = kDronePaSaSa;
 
 // Reed pair voicing: two wavetable oscs per open reed, gains .62/.38.
 // Detunes widened 2026-10-08 per Nathan ("more beating, less organ").
-constexpr float kReedPairDetuneCore[2]  = { -2.6f, 2.9f }; // cents
-constexpr float kReedPairDetuneLeft[2]  = { -3.4f, 2.2f };
-constexpr float kReedPairDetuneRight[2] = { -1.9f, 3.6f };
+constexpr float kReedPairDetuneCore[2]  = { -4.5f, 5.0f }; // cents
+constexpr float kReedPairDetuneLeft[2]  = { -5.5f, 4.0f }; // Nathan 2026-10-08:
+constexpr float kReedPairDetuneRight[2] = { -3.5f, 5.5f }; // widened for audible
+// reed-chorus beating (~2 Hz spread, YouTube shruti reference).
 constexpr float kReedPairGainA = 0.62f;
 constexpr float kReedPairGainB = 0.38f;
 // Pans widened 2026-10-08 per Nathan (stereo width like a real instrument).
 constexpr float kReedPanCore  = 0.0f;
-constexpr float kReedPanLeft  = -0.55f;
-constexpr float kReedPanRight =  0.55f;
+constexpr float kReedPanLeft  = -0.65f; // Nathan 2026-10-08: widened toward
+constexpr float kReedPanRight =  0.65f; // YouTube reference spaciousness.
 
 // Octave doublings (smaller detunes).
 constexpr float kOctDetuneSL[2] = { -0.9f, 1.1f };
@@ -137,7 +138,9 @@ constexpr float kHarmonySmoothSec = 0.28f; // live gain smoothing
 
 // Drone body filter: lowpass Q .18, baseCut = clamp(base*3.2, 1900, 3600),
 // cutoff eases from baseCut*.76 to baseCut with tau ~3.4 s.
-constexpr float kBodyFilterQ = 0.18f;
+constexpr float kBodyFilterQ = 0.5f; // Nathan 2026-10-08: was 0.18 (spec value)
+// but Q=0.18 gives -3.8 dB at 417 Hz / -11 dB at 1251 Hz — kills the warm
+// harmonics. 0.5 (Butterworth) is flat in the passband.
 constexpr float kBodyCutMin  = 1900.0f;
 constexpr float kBodyCutMax  = 3600.0f;
 constexpr float kBodyCutStartScale = 0.76f;
@@ -174,8 +177,9 @@ constexpr float kDriftJawariDepth  = 0.16f;  // +/-16% around .072
 constexpr float kDriftH3Depth      = 0.18f;  // +/-18% around .0075
 
 // Pre-fader: drone bus gets a FIXED kDronePreGain gain before the DRONE fader.
-constexpr float kDronePreGain = 3.2f; // Nathan 2026-10-08: drone must lead;
-// was 1.4 (web value); +7.2 dB puts drone ~4.5 dB above pads at defaults.
+constexpr float kDronePreGain = 7.0f; // Nathan 2026-10-08: drone must lead;
+// was 1.4 (web value), then 3.2, then 6.0; 7.0 (+14 dB vs web) puts the drone
+// clearly above pads/beat as the lead voice at healthy plugin levels.
 
 // ---------------------------------------------------------------------------
 // 3. Reed / jawari Fourier coefficient tables (17 coeffs, sine phase,
@@ -184,17 +188,28 @@ constexpr float kDronePreGain = 3.2f; // Nathan 2026-10-08: drone must lead;
 constexpr int kNumHarmonics = 17;
 
 constexpr float kReedWave[kNumHarmonics] = {
-    0.0f, 1.0f, 0.38f, 0.30f, 0.18f, 0.0f, 0.12f, 0.10f,
-    0.075f, 0.06f, 0.0f, 0.038f, 0.032f, 0.025f, 0.021f, 0.018f, 0.014f
-};
+    0.0f, 1.0f, 0.22f, 0.13f, 0.12f, 0.0f, 0.05f, 0.04f,
+    0.03f, 0.025f, 0.0f, 0.015f, 0.012f, 0.010f, 0.008f, 0.007f, 0.006f
+}; // Nathan 2026-10-08: matched to YouTube shruti reference (277 Hz fund):
+// h2 -13 dB, h3/h4 -18 dB, steep falloff above. Mellow wooden, not edgy.
+// h1-h4 carry the warmth; h5+ are air only.
 constexpr float kMajorReedWave[kNumHarmonics] = {
-    0.0f, 1.0f, 0.38f, 0.30f, 0.18f, 0.14f, 0.12f, 0.10f,
-    0.075f, 0.06f, 0.045f, 0.038f, 0.032f, 0.025f, 0.021f, 0.018f, 0.014f
-};
+    0.0f, 1.0f, 0.22f, 0.13f, 0.12f, 0.06f, 0.05f, 0.04f,
+    0.03f, 0.025f, 0.018f, 0.015f, 0.012f, 0.010f, 0.008f, 0.007f, 0.006f
+}; // major color keeps its 5th-harmonic third, proportionally softened.
 constexpr float kJawariWave[kNumHarmonics] = {
-    0.0f, 0.30f, 0.50f, 0.38f, 0.27f, 0.0f, 0.18f, 0.15f,
-    0.12f, 0.10f, 0.0f, 0.07f, 0.06f, 0.05f, 0.04f, 0.035f, 0.03f
+    0.0f, 0.18f, 0.30f, 0.23f, 0.16f, 0.0f, 0.11f, 0.09f,
+    0.07f, 0.06f, 0.0f, 0.042f, 0.036f, 0.03f, 0.024f, 0.021f, 0.018f
+}; // jawari buzzy thread, proportionally softened (~0.6x).
+
+// Pure sine for the warm sub-fundamental (Nathan 2026-10-08: YouTube shruti
+// reference has a strong low root ~-2 dB below the main fundamental).
+constexpr float kSineWave[kNumHarmonics] = {
+    0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f,
+    0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f
 };
+constexpr float kSubGain = 0.13f; // sub sine level (tuned: lands ~-2 dB below
+// the reed fundamental at the output).
 
 // ---------------------------------------------------------------------------
 // 4. Pad voicings (Deep Blue steel phrase)
@@ -543,7 +558,11 @@ constexpr float kFeltGain = 0.007f; // Nathan 2026-10-08: felt sub was as loud a
 // Web master gain: MASTER=0.62 * 0.9 = 0.558 (web: fx.master.gain set to
 // MASTER*0.9 when sound is on). The native port omitted this, running ~5 dB
 // hot vs the web app.
-constexpr float kMasterGain = 0.558f;
+// Nathan 2026-10-08: the entire plugin was far too quiet (full mix barely
+// hit -20 dBFS). Raised to 2.7 (+13.7 dB) so the full mix peaks around
+// -6 dBFS at defaults — healthy plugin level. The user master fader
+// (0..1.25, default 1.0) remains as trim on top.
+constexpr float kMasterGain = 2.7f;
 // NO compressor on drone/pads path. NO noise/hiss source anywhere.
 constexpr float kDefaultFaderDrone = 1.00f;
 constexpr float kDefaultFaderPulse = 0.69f;
@@ -835,12 +854,15 @@ private:
     Wavetable reedTable_;       // built from kReedWave
     Wavetable majorReedTable_;  // built from kMajorReedWave
     Wavetable jawariTable_;     // built from kJawariWave
+    Wavetable droneSubSineTable_;       // built from kSineWave (sub-fundamental)
     static constexpr int kWavetableSize = 2048;
 
     // Core reed pairs: core (2), left (2), right (2).
     WavetableOsc droneCore_[2];
     WavetableOsc droneLeft_[2];
     WavetableOsc droneRight_[2];
+    // Warm sub-fundamental: sine pair at base/2 (YouTube shruti reference).
+    WavetableOsc droneSub_[2];
     // Octave doublings: sL, sR, h2, h3 (pairs).
     WavetableOsc droneOctSL_[2];
     WavetableOsc droneOctSR_[2];
@@ -865,9 +887,10 @@ private:
     float apLfoPhase_[3] = {};
     float orbitPhase_ = 0.0f;
     float bellowsPhase_ = 0.0f, bellowsPhase2_ = 1.7f; // hand-pump LFOs
-    // Micro-delay widener: 9-sample delay on drone R channel for natural
-    // stereo width (0.19 ms — below echo threshold, just spatial).
-    static constexpr int kWideDelayN = 9;
+    // Micro-delay widener: 18-sample delay on drone R channel for natural
+    // stereo width (0.375 ms — below echo threshold, just spatial).
+    // Nathan 2026-10-08: push toward YouTube reference width (L/R corr ~0.5).
+    static constexpr int kWideDelayN = 18;
     float wideBuf_[kWideDelayN] = {};
     int widePos_ = 0;
 

@@ -224,6 +224,7 @@ void Sg9Dsp::prepare(double sampleRate) {
     reedTable_.build(kReedWave, kNumHarmonics, kWavetableSize);
     majorReedTable_.build(kMajorReedWave, kNumHarmonics, kWavetableSize);
     jawariTable_.build(kJawariWave, kNumHarmonics, kWavetableSize);
+    droneSubSineTable_.build(kSineWave, kNumHarmonics, kWavetableSize);
     {
         float sineC[3] = { 0.0f, 1.0f, 0.0f };
         sineTable_.build(sineC, 2, 2048);
@@ -252,6 +253,7 @@ void Sg9Dsp::prepare(double sampleRate) {
     setOscBankSr(droneCore_, 2, sampleRate);
     setOscBankSr(droneLeft_, 2, sampleRate);
     setOscBankSr(droneRight_, 2, sampleRate);
+    setOscBankSr(droneSub_, 2, sampleRate);
     setOscBankSr(droneOctSL_, 2, sampleRate);
     setOscBankSr(droneOctSR_, 2, sampleRate);
     setOscBankSr(droneOctH2_, 2, sampleRate);
@@ -264,6 +266,7 @@ void Sg9Dsp::prepare(double sampleRate) {
     droneCore_[0].setTable(&reedTable_); droneCore_[1].setTable(&reedTable_);
     droneLeft_[0].setTable(&reedTable_); droneLeft_[1].setTable(&reedTable_);
     droneRight_[0].setTable(&reedTable_); droneRight_[1].setTable(&reedTable_);
+    droneSub_[0].setTable(&droneSubSineTable_); droneSub_[1].setTable(&droneSubSineTable_);
     droneOctSL_[0].setTable(&reedTable_); droneOctSL_[1].setTable(&reedTable_);
     droneOctSR_[0].setTable(&reedTable_); droneOctSR_[1].setTable(&reedTable_);
     droneOctH2_[0].setTable(&reedTable_); droneOctH2_[1].setTable(&reedTable_);
@@ -574,16 +577,23 @@ void Sg9Dsp::configureDroneForVoice(int voiceIdx, bool resetPhases) {
     const ShrutiMode& mode = kShrutiModes[params_.droneTone];
     droneBaseHz_ = base;
 
+    // Stagger oscillator start phases so harmonically-related pairs don't
+    // phase-lock and cancel (was: all reset to 0.0f, causing persistent
+    // destructive interference at shared harmonics like 1251 Hz).
+    int pairIdx = 0;
     auto cfgPair = [&](WavetableOsc* pair, float freq, float dA, float dB) {
         for (int k = 0; k < 2; ++k) {
             pair[k].setFreq(freq);
             pair[k].setDetuneCents(k == 0 ? dA : dB);
-            if (resetPhases) pair[k].reset(0.0f);
+            if (resetPhases) pair[k].reset((float)(pairIdx * 0.377f + k * 0.613f));
         }
+        ++pairIdx;
     };
     cfgPair(droneCore_,  base * mode.ratios[0], kReedPairDetuneCore[0],  kReedPairDetuneCore[1]);
     cfgPair(droneLeft_,  base * mode.ratios[1], kReedPairDetuneLeft[0],  kReedPairDetuneLeft[1]);
     cfgPair(droneRight_, base * mode.ratios[2], kReedPairDetuneRight[0], kReedPairDetuneRight[1]);
+    // Warm sub-fundamental: sine pair at base/2, slight detune for width.
+    cfgPair(droneSub_, base * 0.5f, -4.0f, 4.0f);
     cfgPair(droneOctSL_, 2.0f * base * mode.ratios[0], kOctDetuneSL[0], kOctDetuneSL[1]);
     cfgPair(droneOctSR_, 2.0f * base * mode.ratios[1], kOctDetuneSR[0], kOctDetuneSR[1]);
     cfgPair(droneOctH2_, 2.0f * base * mode.ratios[2], kOctDetuneH2[0], kOctDetuneH2[1]);
@@ -591,7 +601,7 @@ void Sg9Dsp::configureDroneForVoice(int voiceIdx, bool resetPhases) {
     for (int j = 0; j < 3; ++j) {
         droneJawari_[j].setFreq(base * mode.ratios[j]);
         droneJawari_[j].setDetuneCents(kJawariDetune[j]);
-        if (resetPhases) droneJawari_[j].reset(0.0f);
+        if (resetPhases) droneJawari_[j].reset((float)(j * 0.419f + 0.17f));
     }
     droneMinorLo_[0].setFreq(base * kMinorLoRatio);
     droneMinorHi_[0].setFreq(base * kMinorHiRatio);
@@ -676,6 +686,10 @@ void Sg9Dsp::renderDroneReeds(float* busL, float* busR, int n) {
         panAdd(s, kReedPanLeft, l, r);
         s = (droneRight_[0].tick() * kReedPairGainA + droneRight_[1].tick() * kReedPairGainB) * gR;
         panAdd(s, kReedPanRight, l, r);
+        // Warm sub-fundamental (sine at base/2): strong low root like the
+        // YouTube shruti reference (-2 dB below the main fundamental).
+        s = (droneSub_[0].tick() + droneSub_[1].tick()) * 0.5f * kSubGain;
+        panAdd(s, 0.0f, l, r);
         // Octave doublings.
         s = (droneOctSL_[0].tick() * kReedPairGainA + droneOctSL_[1].tick() * kReedPairGainB) * gSL;
         panAdd(s, kOctPanSL, l, r);
